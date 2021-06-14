@@ -1,0 +1,221 @@
+service: notification-service
+
+plugins:
+  - serverless-webpack
+
+provider:
+  name: aws
+  runtime: ${file(../../config.yml):defaultRuntime}
+  region: ${file(../../config.yml):defaultRegion}
+  stage: ${file(../../config.yml):defaultStage}
+  deploymentBucket:
+    name: ${self:provider.region}.${self:custom.stage}.${file(../../config.yml):deploymentBucketSlug}
+  apiGateway:
+    restApiId: ${file(../../config.yml):apiGatewayRestApiId-${self:custom.stage}}
+    restApiRootResourceId: ${file(../../config.yml):apiGatewayRestApiRootResourceId-${self:custom.stage}}
+    description: ${file(../../config.yml):apiGatewayDescription}
+    restApiResources:
+      admin: ${file(../../config.yml):apiGatewayRestApiAdminResourceId-${self:custom.stage}}
+      public: ${file(../../config.yml):apiGatewayRestApiPublicResourceId-${self:custom.stage}}
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - ses:SendBulkTemplatedEmail
+        - ses:ListTemplates
+        - ses:GetTemplate
+        - ses:DeleteTemplate
+        - ses:CreateTemplate
+        - ses:UpdateTemplate
+        - ses:GetIdentityVerificationAttributes
+        - ses:VerifyEmailIdentity
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Query
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:${file(../../config.yml):accountId}:table/DevelopynAdmin-${self:custom.stage}
+        - arn:aws:dynamodb:${self:provider.region}:${file(../../config.yml):accountId}:table/DevelopynAdmin-${self:custom.stage}/index/*
+  environment:
+    DYNAMODB_TABLE_NAME: DevelopynAdmin-${self:custom.stage}
+    STAGE: ${self:custom.stage}
+
+custom:
+  stage: "${opt:stage, self:provider.stage}"
+  webpack:
+    webpackConfig: ../../webpack.config.js
+  authorizerId: ${file(../../config.yml):apiGatewayRestApiAuthorizerId-${self:custom.stage}}
+
+# Commands to locally invoke these functions can be found in the handler.js
+functions:
+  #Register functions for notification emails
+  register-notification-service:
+    handler: handlers/service.register_notification_service
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/register
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  unregister-notification-service:
+    handler: handlers/service.unregister_notification_service
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/unregister
+          method: DELETE
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  #CRUD for notification emails
+  create-notification-email:
+    handler: handlers/service-instance.create_notification_email
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/create-notification-email
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  read-notification-email:
+    handler: handlers/service-instance.read_notification_email
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/read-notification-email
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  update-notification-email:
+    handler: handlers/service-instance.update_notification_email
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/update-notification-email
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  delete-notification-email:
+    handler: handlers/service-instance.delete_notification_email
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/delete-notification-email
+          method: DELETE
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  #CRUD for email templates
+  create-notification-template:
+    handler: handlers/service-instance.create_notification_email_template
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/create-notification-template
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  read-notification-template:
+    handler: handlers/service-instance.read_notification_email_template
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/read-notification-template
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  update-notification-template:
+    handler: handlers/service-instance.update_notification_email_template
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/update-notification-template
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  delete-notification-template:
+    handler: handlers/service-instance.delete_notification_email_template
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/delete-notification-template
+          method: DELETE
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  #Notification email service methods
+  add-recipient:
+    handler: handlers/service-instance-methods.add_recipient
+    timeout: 10
+    events:
+      - http:
+          path: public/notification-service/add-recipient
+          method: POST
+          cors: true
+  send-notification-emails:
+    handler: handlers/service-instance-methods.send_notification_emails
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/send-emails
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  get-templates:
+    handler: handlers/service-instance-methods.get_templates
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/get-templates
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  get-template-fields:
+    handler: handlers/service-instance-methods.get_template_fields
+    timeout: 10
+    events:
+      - http:
+          path: admin/notification-service/get-template-fields
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}

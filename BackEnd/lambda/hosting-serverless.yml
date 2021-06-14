@@ -1,0 +1,134 @@
+service: hosting-service
+
+plugins:
+  - serverless-webpack
+
+provider:
+  name: aws
+  runtime: ${file(../../config.yml):defaultRuntime}
+  region: ${file(../../config.yml):defaultRegion}
+  stage: ${file(../../config.yml):defaultStage}
+  deploymentBucket:
+    name: ${self:provider.region}.${self:custom.stage}.${file(../../config.yml):deploymentBucketSlug}
+  apiGateway:
+    restApiId: ${file(../../config.yml):apiGatewayRestApiId-${self:custom.stage}}
+    restApiRootResourceId: ${file(../../config.yml):apiGatewayRestApiRootResourceId-${self:custom.stage}}
+    description: ${file(../../config.yml):apiGatewayDescription}
+    restApiResources:
+      admin: ${file(../../config.yml):apiGatewayRestApiAdminResourceId-${self:custom.stage}}
+      public: ${file(../../config.yml):apiGatewayRestApiPublicResourceId-${self:custom.stage}}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - ses:SendEmail
+        - ses:SendTemplatedEmail
+      Resource: 
+        - arn:aws:ses:${self:provider.region}:${file(../../config.yml):accountId}:*
+    - Effect: "Allow"
+      Action:
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - lambda:InvokeFunction
+      Resource:
+        - arn:aws:dynamodb:${self:provider.region}:${file(../../config.yml):accountId}:table/DevelopynAdmin-${self:custom.stage}
+        - arn:aws:dynamodb:${self:provider.region}:${file(../../config.yml):accountId}:table/DevelopynAdmin-${self:custom.stage}/index/*
+        - arn:aws:lambda:${self:provider.region}:${file(../../config.yml):accountId}:function:manager-services-${self:custom.stage}-create-invoice
+  environment:
+    DYNAMODB_TABLE_NAME: DevelopynAdmin-${self:custom.stage}
+    ACCOUNTANT_EMAIL: ${self:custom.accountant_email.${self:custom.stage}}
+    ACCOUNTANT_NAME: ${self:custom.accountant_name.${self:custom.stage}}
+    INVOICE_LAMBDA: arn:aws:lambda:${self:provider.region}:${file(../../config.yml):accountId}:function:manager-services-${self:custom.stage}-create-invoice
+
+custom:
+  stage: "${opt:stage, self:provider.stage}"
+  webpack:
+    webpackConfig: ../../webpack.config.js
+  authorizerId: ${file(../../config.yml):apiGatewayRestApiAuthorizerId-${self:custom.stage}}
+  accountant_email:
+    dev: bradley.marsh@developyn.com
+    production: accounts@developyn.com
+  accountant_name:
+    dev: Dev
+    production: Ade
+
+functions:
+  create-hosting-record:
+    handler: handlers/service-instance.create_hosting_record
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/create-hosting-record
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  read-hosting-record:
+    handler: handlers/service-instance.read_hosting_record
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/read-hosting-record
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  update-hosting-record:
+    handler: handlers/service-instance.update_hosting_record
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/update-hosting-record
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  delete-hosting-record:
+    handler: handlers/service-instance.delete_hosting_record
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/delete-hosting-record
+          method: DELETE
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId: 
+              ${self:custom.authorizerId}
+  get-all-records:
+    handler: handlers/service-instance-methods.get_all_records
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/get-all-records
+          method: GET
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId:
+              ${self:custom.authorizerId}
+  update-status:
+    handler: handlers/service-instance-methods.update_status
+    timeout: 10
+    events:
+      - http:
+          path: admin/hosting-service/update-status
+          method: POST
+          cors: true
+          authorizer:
+            type: CUSTOM
+            authorizerId:
+              ${self:custom.authorizerId}
+  generate-invoice-contact-client:
+    handler: handlers/service-instance-methods.generate_invoice_contact_client
+    timeout: 100
+    events:
+      - schedule: rate(1 day)
